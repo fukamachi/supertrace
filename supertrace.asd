@@ -10,7 +10,11 @@
 
 (defsystem "supertrace/tests"
   :depends-on ("supertrace"
-               "rove")
+               "rove"
+               "cl-ppcre")
   :pathname "tests"
-  :components ()
+  :serial t
+  :components
+  ((:file "logger")
+   (:file "main"))
   :perform (test-op (o c) (symbol-call :rove '#:run c)))
