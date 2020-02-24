@@ -1,5 +1,7 @@
 # supertrace
 
+[![Build Status](https://github.com/fukamachi/supertrace/workflows/CI/badge.svg)](https://github.com/fukamachi/supertrace/actions?query=workflow%3ACI)
+
 Superior Common Lisp `trace` functionality for debugging/profiling real world applications.
 
 ## Warning

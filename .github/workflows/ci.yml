@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    paths: ['*']
+  pull_request:
+    paths: ['*']
+  schedule:
+    - cron: '0 15 * * *'
+
+jobs:
+  test:
+    name: ${{ matrix.lisp }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        lisp: [sbcl-bin]
+        os: [ubuntu-latest, macOS-latest]
+
+    steps:
+      - uses: actions/checkout@v1
+      - name: Install Roswell
+        env:
+          LISP: ${{ matrix.lisp }}
+        run: |
+          curl -L https://raw.githubusercontent.com/roswell/roswell/master/scripts/install-for-ci.sh | sh
+      - name: Install Ultralisp
+        run: ros -e '(ql-dist:install-dist "http://dist.ultralisp.org/" :prompt nil)'
+      - name: Install Rove
+        run: ros install fukamachi/rove
+      - name: Run tests
+        run: |
+          PATH="~/.roswell/bin:$PATH"
+          rove supertrace.asd
