@@ -1,0 +1,91 @@
+(defpackage #:supertrace
+  (:nicknames #:supertrace/main)
+  (:use #:cl)
+  (:import-from #:supertrace/logger
+                #:elapsed-logger)
+  (:import-from #:alexandria
+                #:once-only
+                #:with-gensyms)
+  (:export #:supertrace
+           #:elapsed-logger))
+(in-package #:supertrace)
+
+(defparameter *before-unixtime* nil)
+(defparameter *before-nsec* nil)
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun parse-supertrace-options (args)
+    (loop while args
+          for arg = (pop args)
+          if (and args
+                  (member arg '(:before :after)))
+          append (list arg (pop args)) into options
+          else collect arg into names
+          finally (return (values options names)))))
+
+(declaim (inline find-trace-call-frame))
+(defun find-trace-call-frame ()
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (do ((frame (sb-di:top-frame) (sb-di:frame-down frame)))
+      ((or (null frame)
+           (eq 'sb-debug::trace-call (sb-debug::frame-call frame))) frame)
+    (declare (type (or sb-di:frame null) frame))))
+
+(defun ensure-printable (args)
+  (if (consp args)
+      (mapcar #'sb-debug::ensure-printable-object args)
+      args))
+
+(defun expand-function-names (names)
+  (loop for name in names
+        if (and (consp name)
+                (eq (first name) 'package))
+        append (let ((symbols '()))
+                 (do-external-symbols (symb (second name) (nreverse symbols))
+                   (when (and (fboundp symb)
+                              (not (macro-function symb)))
+                     (push symb symbols))))
+        collect name))
+
+(defmacro supertrace (&rest names-and-options)
+  (multiple-value-bind (options function-names)
+      (parse-supertrace-options names-and-options)
+    (destructuring-bind (&key (before ''elapsed-logger) (after ''elapsed-logger))
+        options
+      (with-gensyms (frame info form unixtime nsec)
+        `(trace :report ,(if (or before after)
+                             nil
+                             'trace)
+                :condition-all (progn
+                                 ,(and before
+                                       `(let ((,frame (find-trace-call-frame)))
+                                          (when (null ,frame)
+                                            (error "Failed to find sb-debug::trace-call in stacktraces"))
+                                          (destructuring-bind (,info &rest ,form)
+                                              (nth-value 1 (sb-debug::frame-call ,frame))
+                                            (funcall ,before
+                                                     (sb-debug::trace-info-what ,info)
+                                                     (ensure-printable (rest ,form))))))
+                                 ,(and after
+                                       `(multiple-value-bind (,unixtime ,nsec)
+                                            (sb-ext:get-time-of-day)
+                                          (push ,unixtime *before-unixtime*)
+                                          (push ,nsec *before-nsec*)))
+                                 t)
+                :break-after (progn
+                               ,(and after
+                                     `(let ((,frame (find-trace-call-frame)))
+                                        (when (null ,frame)
+                                          (error "Failed to find sb-debug::trace-call in stacktraces"))
+                                        (destructuring-bind (,info &rest ,form)
+                                            (nth-value 1 (sb-debug::frame-call ,frame))
+                                          (multiple-value-bind (,unixtime ,nsec)
+                                              (sb-ext:get-time-of-day)
+                                            (funcall ,after
+                                                     (sb-debug::trace-info-what ,info)
+                                                     (ensure-printable (rest ,form))
+                                                     (sb-debug:arg 0)
+                                                     (+ (* 1000000 (- ,unixtime (pop *before-unixtime*)))
+                                                        (- ,nsec (pop *before-nsec*))))))))
+                               nil)
+                ,@(expand-function-names function-names))))))
