@@ -59,42 +59,45 @@
 (defmacro supertrace (&rest names-and-options)
   (multiple-value-bind (options function-names)
       (parse-supertrace-options names-and-options)
-    (destructuring-bind (&key (before ''elapsed-logger) (after ''elapsed-logger))
-        options
-      (with-gensyms (frame info form unixtime nsec)
-        `(trace :report ,(if (or before after)
-                             nil
-                             'trace)
-                :condition-all (progn
-                                 ,(and before
+    (let ((function-names (or function-names
+                              ;; If no function/package names are supplied, trace all functions in the current package.
+                              `((package ,(package-name *package*) :internal t)))))
+      (destructuring-bind (&key (before ''elapsed-logger) (after ''elapsed-logger))
+          options
+        (with-gensyms (frame info form unixtime nsec)
+          `(trace :report ,(if (or before after)
+                               nil
+                               'trace)
+                  :condition-all (progn
+                                   ,(and before
+                                         `(let ((,frame (find-trace-call-frame)))
+                                            (when (null ,frame)
+                                              (error "Failed to find sb-debug::trace-call in stacktraces"))
+                                            (destructuring-bind (,info &rest ,form)
+                                                (nth-value 1 (sb-debug::frame-call ,frame))
+                                              (funcall ,before
+                                                       (sb-debug::trace-info-what ,info)
+                                                       (ensure-printable (rest ,form))))))
+                                   ,(and after
+                                         `(multiple-value-bind (,unixtime ,nsec)
+                                              (sb-ext:get-time-of-day)
+                                            (push ,unixtime *before-unixtime*)
+                                            (push ,nsec *before-nsec*)))
+                                   t)
+                  :break-after (progn
+                                 ,(and after
                                        `(let ((,frame (find-trace-call-frame)))
                                           (when (null ,frame)
                                             (error "Failed to find sb-debug::trace-call in stacktraces"))
                                           (destructuring-bind (,info &rest ,form)
                                               (nth-value 1 (sb-debug::frame-call ,frame))
-                                            (funcall ,before
-                                                     (sb-debug::trace-info-what ,info)
-                                                     (ensure-printable (rest ,form))))))
-                                 ,(and after
-                                       `(multiple-value-bind (,unixtime ,nsec)
-                                            (sb-ext:get-time-of-day)
-                                          (push ,unixtime *before-unixtime*)
-                                          (push ,nsec *before-nsec*)))
-                                 t)
-                :break-after (progn
-                               ,(and after
-                                     `(let ((,frame (find-trace-call-frame)))
-                                        (when (null ,frame)
-                                          (error "Failed to find sb-debug::trace-call in stacktraces"))
-                                        (destructuring-bind (,info &rest ,form)
-                                            (nth-value 1 (sb-debug::frame-call ,frame))
-                                          (multiple-value-bind (,unixtime ,nsec)
-                                              (sb-ext:get-time-of-day)
-                                            (funcall ,after
-                                                     (sb-debug::trace-info-what ,info)
-                                                     (ensure-printable (rest ,form))
-                                                     (sb-debug:arg 0)
-                                                     (+ (* 1000000 (- ,unixtime (pop *before-unixtime*)))
-                                                        (- ,nsec (pop *before-nsec*))))))))
-                               nil)
-                ,@(expand-function-names function-names))))))
+                                            (multiple-value-bind (,unixtime ,nsec)
+                                                (sb-ext:get-time-of-day)
+                                              (funcall ,after
+                                                       (sb-debug::trace-info-what ,info)
+                                                       (ensure-printable (rest ,form))
+                                                       (sb-debug:arg 0)
+                                                       (+ (* 1000000 (- ,unixtime (pop *before-unixtime*)))
+                                                          (- ,nsec (pop *before-nsec*))))))))
+                                 nil)
+                  ,@(expand-function-names function-names)))))))
