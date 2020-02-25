@@ -32,6 +32,12 @@ running <DBI.DRIVER> (execute #<dbd.postgres:dbd-postgres-query {100459D6A3}> "e
 0.565ms <DBI.DRIVER> (execute #<dbd.postgres:dbd-postgres-query {100459D6A3}> "eb073a91-d098-4c38-805b-cede8e39d278") -> #<dbd.postgres:dbd-postgres-query {100459D6A3}>
 ```
 
+### Options
+
+- `:before`: A function to run _before_ the function call
+- `:after`: A function to run _after_ the function call
+- `:threshold`: Run `:after` function only when the elapsed time exceeded this value. (in nanoseconds)
+
 ## Supported implementations
 
 - [x] SBCL

@@ -18,7 +18,7 @@
     (loop while args
           for arg = (pop args)
           if (and args
-                  (member arg '(:before :after)))
+                  (member arg '(:before :after :threshold)))
           append (list arg (pop args)) into options
           else collect arg into names
           finally (return (values options names)))))
@@ -62,9 +62,9 @@
     (let ((function-names (or function-names
                               ;; If no function/package names are supplied, trace all functions in the current package.
                               `((package ,(package-name *package*) :internal t)))))
-      (destructuring-bind (&key (before ''elapsed-logger) (after ''elapsed-logger))
+      (destructuring-bind (&key (before ''elapsed-logger) (after ''elapsed-logger) threshold)
           options
-        (with-gensyms (frame info form unixtime nsec)
+        (with-gensyms (frame info form unixtime nsec elapsed)
           `(trace :report ,(if (or before after)
                                nil
                                'trace)
@@ -93,11 +93,15 @@
                                               (nth-value 1 (sb-debug::frame-call ,frame))
                                             (multiple-value-bind (,unixtime ,nsec)
                                                 (sb-ext:get-time-of-day)
-                                              (funcall ,after
-                                                       (sb-debug::trace-info-what ,info)
-                                                       (ensure-printable (rest ,form))
-                                                       (sb-debug:arg 0)
-                                                       (+ (* 1000000 (- ,unixtime (pop *before-unixtime*)))
-                                                          (- ,nsec (pop *before-nsec*))))))))
+                                              (let ((,elapsed (+ (* 1000000 (- ,unixtime (pop *before-unixtime*)))
+                                                                 (- ,nsec (pop *before-nsec*)))))
+                                                (when ,(if threshold
+                                                           `(< ,threshold ,elapsed)
+                                                           t)
+                                                  (funcall ,after
+                                                           (sb-debug::trace-info-what ,info)
+                                                           (ensure-printable (rest ,form))
+                                                           (sb-debug:arg 0)
+                                                           ,elapsed)))))))
                                  nil)
                   ,@(expand-function-names function-names)))))))
