@@ -3,15 +3,14 @@
   :author "Eitaro Fukamachi"
   :license "BSD 2-Clause"
   :description "Superior Common Lisp trace functionality"
-  :defsystem-depends-on ((:feature :unix "cffi-grovel"))
-  :depends-on ((:feature :unix "cffi"))
+  :defsystem-depends-on ("cffi-grovel")
+  :depends-on ("cffi")
   :pathname "src"
   :components
   ((:file "main" :depends-on ("logger"
-                              (:feature :unix "clock")))
+                              "clock"))
    (:file "logger")
    (:module "clock"
-    :if-feature :unix
     :serial t
     :components
     ((:file "package")
