@@ -11,7 +11,7 @@
 (in-package #:supertrace)
 
 (defparameter *before-unixtime* nil)
-(defparameter *before-nsec* nil)
+(defparameter *before-usec* nil)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun parse-supertrace-options (args)
@@ -64,7 +64,7 @@
                               `((package ,(package-name *package*) :internal t)))))
       (destructuring-bind (&key (before ''elapsed-logger) (after ''elapsed-logger) threshold)
           options
-        (with-gensyms (frame info form unixtime nsec elapsed)
+        (with-gensyms (frame info form unixtime usec elapsed)
           `(trace :report ,(if (or before after)
                                nil
                                'trace)
@@ -79,10 +79,10 @@
                                                        (sb-debug::trace-info-what ,info)
                                                        (ensure-printable (rest ,form))))))
                                    ,(and after
-                                         `(multiple-value-bind (,unixtime ,nsec)
+                                         `(multiple-value-bind (,unixtime ,usec)
                                               (sb-ext:get-time-of-day)
                                             (push ,unixtime *before-unixtime*)
-                                            (push ,nsec *before-nsec*)))
+                                            (push ,usec *before-usec*)))
                                    t)
                   :break-after (progn
                                  ,(and after
@@ -91,10 +91,10 @@
                                             (error "Failed to find sb-debug::trace-call in stacktraces"))
                                           (destructuring-bind (,info &rest ,form)
                                               (nth-value 1 (sb-debug::frame-call ,frame))
-                                            (multiple-value-bind (,unixtime ,nsec)
+                                            (multiple-value-bind (,unixtime ,usec)
                                                 (sb-ext:get-time-of-day)
                                               (let ((,elapsed (+ (* 1000000 (- ,unixtime (pop *before-unixtime*)))
-                                                                 (- ,nsec (pop *before-nsec*)))))
+                                                                 (- ,usec (pop *before-usec*)))))
                                                 (when ,(if threshold
                                                            `(< ,threshold ,elapsed)
                                                            t)

@@ -20,7 +20,7 @@ This software is still ALPHA quality. The APIs will be likely to change.
 ;; Custom before/after functions
 (supertrace (package dbi) dex:request
             :before #'before-logger      ;; <- A function takes 2 arguments -- a function name and arguments
-            :after #'after-logger)       ;; <- A function takes 4 arguments -- a function name, arguments, returned value and elapsed time in nanoseconds.
+            :after #'after-logger)       ;; <- A function takes 4 arguments -- a function name, arguments, returned value and elapsed time in microsecond.
 ```
 
 Output is like as follows:
@@ -36,7 +36,7 @@ running <DBI.DRIVER> (execute #<dbd.postgres:dbd-postgres-query {100459D6A3}> "e
 
 - `:before`: A function to run _before_ the function call
 - `:after`: A function to run _after_ the function call
-- `:threshold`: Run `:after` function only when the elapsed time exceeded this value. (in nanoseconds)
+- `:threshold`: Run `:after` function only when the elapsed time exceeded this value. (in microsecond)
 
 ## Supported implementations
 
