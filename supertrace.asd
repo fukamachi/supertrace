@@ -4,8 +4,7 @@
   :license "BSD 2-Clause"
   :description "Superior Common Lisp trace functionality"
   :defsystem-depends-on ((:feature :unix "cffi-grovel"))
-  :depends-on ("alexandria"
-               (:feature :unix "cffi"))
+  :depends-on ((:feature :unix "cffi"))
   :pathname "src"
   :components
   ((:file "main" :depends-on ("logger"

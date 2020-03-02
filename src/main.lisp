@@ -6,9 +6,6 @@
   #+unix
   (:import-from #:supertrace/clock
                 #:clock-gettime)
-  (:import-from #:alexandria
-                #:once-only
-                #:with-gensyms)
   (:export #:supertrace
            #:elapsed-logger))
 (in-package #:supertrace)
@@ -70,47 +67,52 @@
       (parse-supertrace-options names-and-options)
     (let ((function-names (or function-names
                               ;; If no function/package names are supplied, trace all functions in the current package.
-                              `((package ,(package-name *package*) :internal t)))))
+                              `((package ,(package-name *package*) :internal t))))
+          (frame (gensym "FRAME"))
+          (info (gensym "INFO"))
+          (form (gensym "FORM"))
+          (unixtime (gensym "UNIXTIME"))
+          (usec (gensym "USEC"))
+          (elapsed (gensym "ELAPSED")))
       (destructuring-bind (&key (before ''elapsed-logger) (after ''elapsed-logger) threshold)
           options
-        (with-gensyms (frame info form unixtime usec elapsed)
-          `(trace :report ,(if (or before after)
-                               nil
-                               'trace)
-                  :condition-all (progn
-                                   ,(and before
-                                         `(let ((,frame (find-trace-call-frame)))
-                                            (when (null ,frame)
-                                              (error "Failed to find sb-debug::trace-call in stacktraces"))
-                                            (destructuring-bind (,info &rest ,form)
-                                                (nth-value 1 (sb-debug::frame-call ,frame))
-                                              (funcall ,before
-                                                       (sb-debug::trace-info-what ,info)
-                                                       (ensure-printable (rest ,form))))))
-                                   ,(and after
-                                         `(multiple-value-bind (,unixtime ,usec)
-                                              (get-timings)
-                                            (push ,unixtime *before-unixtime*)
-                                            (push ,usec *before-usec*)))
-                                   t)
-                  :break-after (progn
-                                 ,(and after
+        `(trace :report ,(if (or before after)
+                             nil
+                             'trace)
+                :condition-all (progn
+                                 ,(and before
                                        `(let ((,frame (find-trace-call-frame)))
                                           (when (null ,frame)
                                             (error "Failed to find sb-debug::trace-call in stacktraces"))
                                           (destructuring-bind (,info &rest ,form)
                                               (nth-value 1 (sb-debug::frame-call ,frame))
-                                            (multiple-value-bind (,unixtime ,usec)
-                                                (get-timings)
-                                              (let ((,elapsed (+ (* 1000000 (- ,unixtime (pop *before-unixtime*)))
-                                                                 (- ,usec (pop *before-usec*)))))
-                                                (when ,(if threshold
-                                                           `(< ,threshold ,elapsed)
-                                                           t)
-                                                  (funcall ,after
-                                                           (sb-debug::trace-info-what ,info)
-                                                           (ensure-printable (rest ,form))
-                                                           (sb-debug:arg 0)
-                                                           ,elapsed)))))))
-                                 nil)
-                  ,@(expand-function-names function-names)))))))
+                                            (funcall ,before
+                                                     (sb-debug::trace-info-what ,info)
+                                                     (ensure-printable (rest ,form))))))
+                                 ,(and after
+                                       `(multiple-value-bind (,unixtime ,usec)
+                                            (get-timings)
+                                          (push ,unixtime *before-unixtime*)
+                                          (push ,usec *before-usec*)))
+                                 t)
+                :break-after (progn
+                               ,(and after
+                                     `(let ((,frame (find-trace-call-frame)))
+                                        (when (null ,frame)
+                                          (error "Failed to find sb-debug::trace-call in stacktraces"))
+                                        (destructuring-bind (,info &rest ,form)
+                                            (nth-value 1 (sb-debug::frame-call ,frame))
+                                          (multiple-value-bind (,unixtime ,usec)
+                                              (get-timings)
+                                            (let ((,elapsed (+ (* 1000000 (- ,unixtime (pop *before-unixtime*)))
+                                                               (- ,usec (pop *before-usec*)))))
+                                              (when ,(if threshold
+                                                         `(< ,threshold ,elapsed)
+                                                         t)
+                                                (funcall ,after
+                                                         (sb-debug::trace-info-what ,info)
+                                                         (ensure-printable (rest ,form))
+                                                         (sb-debug:arg 0)
+                                                         ,elapsed)))))))
+                               nil)
+                ,@(expand-function-names function-names))))))
