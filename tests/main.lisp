@@ -10,19 +10,23 @@
 (defpackage #:supertrace/tests/main/test-package
   (:use #:cl)
   (:export #:say-hello
-           #:hello-world))
+           #:hello-world
+           #:wait-a-while))
 (in-package #:supertrace/tests/main/test-package)
 (defun say-hello (to)
   (format t "Hello, ~A!" to))
 (defun hello-world ()
   (say-hello "World")
   t)
+(defun wait-a-while ()
+  (sleep 0.3))
 
 (in-package #:supertrace/tests/main)
 
 (setup
   (untrace supertrace/tests/main/test-package:say-hello
-           supertrace/tests/main/test-package:hello-world))
+           supertrace/tests/main/test-package:hello-world
+           supertrace/tests/main/test-package:wait-a-while))
 
 (deftest parse-supertrace-options
   (flet ((fut (args)
@@ -56,11 +60,19 @@
 \\d+?\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(say-hello \"Eitaro\"\\) -> nil\\n$" outputs)))
 
   (supertrace supertrace/tests/main/test-package:hello-world)
-  (let* ((*standard-output* (make-broadcast-stream))
-         (outputs (with-output-to-string (*trace-output*)
-                    (supertrace/tests/main/test-package:hello-world))))
+  (let ((outputs (let ((*standard-output* (make-broadcast-stream)))
+                   (with-output-to-string (*trace-output*)
+                     (supertrace/tests/main/test-package:hello-world)))))
     (ok (scan "^running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(hello-world\\)
 running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(say-hello \"World\"\\)
 \\d+?\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(say-hello \"World\"\\) -> nil
 \\d+?\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(hello-world\\) -> t
-$" outputs))))
+$" outputs)))
+
+  (supertrace supertrace/tests/main/test-package:wait-a-while)
+  (let ((outputs (let ((*standard-output* (make-broadcast-stream)))
+                   (with-output-to-string (*trace-output*)
+                     (supertrace/tests/main/test-package:wait-a-while)))))
+    (scan "^running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
+3\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+$" outputs)))
