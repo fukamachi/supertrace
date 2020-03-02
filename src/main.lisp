@@ -3,6 +3,9 @@
   (:use #:cl)
   (:import-from #:supertrace/logger
                 #:elapsed-logger)
+  #+unix
+  (:import-from #:supertrace/clock
+                #:clock-gettime)
   (:import-from #:alexandria
                 #:once-only
                 #:with-gensyms)
@@ -56,6 +59,12 @@
                  (nreverse symbols))
         collect name))
 
+(defun get-timings ()
+  #+unix (multiple-value-bind (sec nsec)
+             (clock-gettime)
+           (values sec (floor nsec 1000)))
+  #-unix (sb-ext:get-time-of-day))
+
 (defmacro supertrace (&rest names-and-options)
   (multiple-value-bind (options function-names)
       (parse-supertrace-options names-and-options)
@@ -80,7 +89,7 @@
                                                        (ensure-printable (rest ,form))))))
                                    ,(and after
                                          `(multiple-value-bind (,unixtime ,usec)
-                                              (sb-ext:get-time-of-day)
+                                              (get-timings)
                                             (push ,unixtime *before-unixtime*)
                                             (push ,usec *before-usec*)))
                                    t)
@@ -92,7 +101,7 @@
                                           (destructuring-bind (,info &rest ,form)
                                               (nth-value 1 (sb-debug::frame-call ,frame))
                                             (multiple-value-bind (,unixtime ,usec)
-                                                (sb-ext:get-time-of-day)
+                                                (get-timings)
                                               (let ((,elapsed (+ (* 1000000 (- ,unixtime (pop *before-unixtime*)))
                                                                  (- ,usec (pop *before-usec*)))))
                                                 (when ,(if threshold
