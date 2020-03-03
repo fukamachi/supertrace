@@ -60,6 +60,8 @@
 (defun get-timings ()
   #+unix (multiple-value-bind (sec nsec)
              (clock-gettime)
+           (declare (fixnum nsec)
+                    (optimize (speed 3) (safety 0) (debug 0)))
            (values sec (floor nsec 1000)))
   #-unix (sb-ext:get-time-of-day))
 
