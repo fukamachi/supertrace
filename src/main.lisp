@@ -10,8 +10,11 @@
            #:elapsed-logger))
 (in-package #:supertrace)
 
-(defparameter *before-unixtime* nil)
-(defparameter *before-usec* nil)
+(declaim (hash-table *before-unixtime* *before-usec*))
+(defparameter *before-unixtime*
+  (make-hash-table :test 'eq))
+(defparameter *before-usec*
+  (make-hash-table :test 'eq))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun parse-supertrace-options (args)
@@ -56,9 +59,12 @@
                  (nreverse symbols))
         collect name))
 
+(declaim (inline get-timings))
 (defun get-timings ()
   #+unix (multiple-value-bind (sec nsec)
              (clock-gettime)
+           (declare (fixnum nsec)
+                    (optimize (speed 3) (safety 0) (debug 0)))
            (values sec (floor nsec 1000)))
   #-unix (sb-ext:get-time-of-day))
 
@@ -92,8 +98,10 @@
                                  ,(and after
                                        `(multiple-value-bind (,unixtime ,usec)
                                             (get-timings)
-                                          (push ,unixtime *before-unixtime*)
-                                          (push ,usec *before-usec*)))
+                                          (push ,unixtime
+                                                (gethash sb-thread:*current-thread* *before-unixtime*))
+                                          (push ,usec
+                                                (gethash sb-thread:*current-thread* *before-usec*))))
                                  t)
                 :break-after (progn
                                ,(and after
@@ -104,8 +112,11 @@
                                             (nth-value 1 (sb-debug::frame-call ,frame))
                                           (multiple-value-bind (,unixtime ,usec)
                                               (get-timings)
-                                            (let ((,elapsed (+ (* 1000000 (- ,unixtime (pop *before-unixtime*)))
-                                                               (- ,usec (pop *before-usec*)))))
+                                            (declare (fixnum ,unixtime ,usec))
+                                            (let ((,elapsed
+                                                    (locally (declare (optimize (speed 3) (safety 0) (debug 0)))
+                                                      (+ (* 1000000 (- ,unixtime (the fixnum (pop (gethash sb-thread:*current-thread* *before-unixtime*)))))
+                                                         (- ,usec (the fixnum (pop (gethash sb-thread:*current-thread* *before-usec*))))))))
                                               (when ,(if threshold
                                                          `(< ,threshold ,elapsed)
                                                          t)

@@ -22,7 +22,8 @@
 (defsystem "supertrace/tests"
   :depends-on ("supertrace"
                "rove"
-               "cl-ppcre")
+               "cl-ppcre"
+               "bordeaux-threads")
   :pathname "tests"
   :serial t
   :components
