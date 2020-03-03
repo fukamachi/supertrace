@@ -109,8 +109,10 @@
                                             (nth-value 1 (sb-debug::frame-call ,frame))
                                           (multiple-value-bind (,unixtime ,usec)
                                               (get-timings)
-                                            (let ((,elapsed (+ (* 1000000 (- ,unixtime (pop (gethash sb-thread:*current-thread* *before-timings-unixtime*))))
-                                                               (- ,usec (pop (gethash sb-thread:*current-thread* *before-timings-usec*))))))
+                                            (declare (fixnum ,unixtime ,usec))
+                                            (let ((,elapsed (locally (declare (optimize (speed 3) (safety 0) (debug 0)))
+                                                              (+ (* 1000000 (- ,unixtime (the fixnum (pop (gethash sb-thread:*current-thread* *before-timings-unixtime*)))))
+                                                                 (- ,usec (the fixnum (pop (gethash sb-thread:*current-thread* *before-timings-usec*))))))))
                                               (when ,(if threshold
                                                          `(< ,threshold ,elapsed)
                                                          t)
