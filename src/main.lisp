@@ -56,6 +56,7 @@
                  (nreverse symbols))
         collect name))
 
+(declaim (inline get-timings))
 (defun get-timings ()
   #+unix (multiple-value-bind (sec nsec)
              (clock-gettime)
