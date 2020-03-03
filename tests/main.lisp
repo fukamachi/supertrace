@@ -90,8 +90,8 @@ $" outputs)))
                        (supertrace/tests/main/test-package:wait-a-while2)))))
       (ok (scan "^running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while2\\)
 running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
-30\\d\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
-60\\d\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while2\\) -> nil
+3\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+6\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while2\\) -> nil
 $" outputs))))
 
   (testing "Multiple threads"
@@ -117,6 +117,6 @@ $" outputs))))
       (let ((outputs (get-output-stream-string output-stream)))
         (ok (scan "^running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
 running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
-30\\d\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
-30\\d\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+3\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+3\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
 $" outputs))))))
