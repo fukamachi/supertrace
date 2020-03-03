@@ -11,7 +11,8 @@
   (:use #:cl)
   (:export #:say-hello
            #:hello-world
-           #:wait-a-while))
+           #:wait-a-while
+           #:wait-a-while2))
 (in-package #:supertrace/tests/main/test-package)
 (defun say-hello (to)
   (format t "Hello, ~A!" to))
@@ -20,13 +21,18 @@
   t)
 (defun wait-a-while ()
   (sleep 0.3))
+(defun wait-a-while2 ()
+  (sleep 0.1)
+  (wait-a-while)
+  (sleep 0.2))
 
 (in-package #:supertrace/tests/main)
 
 (setup
   (untrace supertrace/tests/main/test-package:say-hello
            supertrace/tests/main/test-package:hello-world
-           supertrace/tests/main/test-package:wait-a-while))
+           supertrace/tests/main/test-package:wait-a-while
+           supertrace/tests/main/test-package:wait-a-while2))
 
 (deftest parse-supertrace-options
   (flet ((fut (args)
@@ -73,6 +79,44 @@ $" outputs)))
   (let ((outputs (let ((*standard-output* (make-broadcast-stream)))
                    (with-output-to-string (*trace-output*)
                      (supertrace/tests/main/test-package:wait-a-while)))))
-    (scan "^running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
+    (ok (scan "^running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
 3\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
 $" outputs)))
+
+  (testing "Nested case"
+    (supertrace supertrace/tests/main/test-package:wait-a-while2)
+    (let ((outputs (let ((*standard-output* (make-broadcast-stream)))
+                     (with-output-to-string (*trace-output*)
+                       (supertrace/tests/main/test-package:wait-a-while2)))))
+      (ok (scan "^running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while2\\)
+running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
+30\\d\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+60\\d\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while2\\) -> nil
+$" outputs))))
+
+  (testing "Multiple threads"
+    (let* ((output-stream (make-string-output-stream))
+           (bt:*default-special-bindings* `((*trace-output* . ,output-stream)
+                                            (*standard-output* . ,(make-broadcast-stream))))
+           threads)
+      (push
+        (bt:make-thread
+          (lambda ()
+            (supertrace/tests/main/test-package:wait-a-while))
+          :name "wait-a-while 1")
+        threads)
+      (sleep 0.1)
+      (push
+        (bt:make-thread
+          (lambda ()
+            (supertrace/tests/main/test-package:wait-a-while))
+          :name "wait-a-while 2")
+        threads)
+
+      (mapc #'bt:join-thread threads)
+      (let ((outputs (get-output-stream-string output-stream)))
+        (ok (scan "^running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
+running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
+30\\d\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+30\\d\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+$" outputs))))))

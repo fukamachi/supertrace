@@ -10,8 +10,7 @@
            #:elapsed-logger))
 (in-package #:supertrace)
 
-(defparameter *before-unixtime* nil)
-(defparameter *before-usec* nil)
+(defparameter *before-timings* (make-hash-table :test 'eq))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun parse-supertrace-options (args)
@@ -76,6 +75,8 @@
           (form (gensym "FORM"))
           (unixtime (gensym "UNIXTIME"))
           (usec (gensym "USEC"))
+          (before-unixtime (gensym "BEFORE-UNIXTIME"))
+          (before-usec (gensym "BEFORE-USEC"))
           (elapsed (gensym "ELAPSED")))
       (destructuring-bind (&key (before ''elapsed-logger) (after ''elapsed-logger) threshold)
           options
@@ -95,8 +96,8 @@
                                  ,(and after
                                        `(multiple-value-bind (,unixtime ,usec)
                                             (get-timings)
-                                          (push ,unixtime *before-unixtime*)
-                                          (push ,usec *before-usec*)))
+                                          (push (cons ,unixtime ,usec)
+                                                (gethash sb-thread:*current-thread* *before-timings*))))
                                  t)
                 :break-after (progn
                                ,(and after
@@ -107,15 +108,17 @@
                                             (nth-value 1 (sb-debug::frame-call ,frame))
                                           (multiple-value-bind (,unixtime ,usec)
                                               (get-timings)
-                                            (let ((,elapsed (+ (* 1000000 (- ,unixtime (pop *before-unixtime*)))
-                                                               (- ,usec (pop *before-usec*)))))
-                                              (when ,(if threshold
-                                                         `(< ,threshold ,elapsed)
-                                                         t)
-                                                (funcall ,after
-                                                         (sb-debug::trace-info-what ,info)
-                                                         (ensure-printable (rest ,form))
-                                                         (sb-debug:arg 0)
-                                                         ,elapsed)))))))
+                                            (destructuring-bind (,before-unixtime . ,before-usec)
+                                                (pop (gethash sb-thread:*current-thread* *before-timings*))
+                                              (let ((,elapsed (+ (* 1000000 (- ,unixtime ,before-unixtime))
+                                                                 (- ,usec ,before-usec))))
+                                                (when ,(if threshold
+                                                           `(< ,threshold ,elapsed)
+                                                           t)
+                                                  (funcall ,after
+                                                           (sb-debug::trace-info-what ,info)
+                                                           (ensure-printable (rest ,form))
+                                                           (sb-debug:arg 0)
+                                                           ,elapsed))))))))
                                nil)
                 ,@(expand-function-names function-names))))))
