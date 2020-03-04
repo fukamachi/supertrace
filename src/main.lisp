@@ -7,6 +7,8 @@
   (:import-from #:supertrace/clock
                 #:clock-gettime)
   (:export #:supertrace
+           #:parent
+           #:depth
            #:elapsed-logger))
 (in-package #:supertrace)
 
@@ -15,6 +17,7 @@
   (make-hash-table :test 'eq))
 (defparameter *before-usec*
   (make-hash-table :test 'eq))
+(defparameter *traced-stacks* '())
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun parse-supertrace-options (args)
@@ -68,6 +71,12 @@
            (values sec (floor nsec 1000)))
   #-unix (sb-ext:get-time-of-day))
 
+(defun parent ()
+  (first *traced-stacks*))
+
+(defun depth ()
+  (count-if #'cdr sb-debug::*traced-entries*))
+
 (defmacro supertrace (&rest names-and-options)
   (multiple-value-bind (options function-names)
       (parse-supertrace-options names-and-options)
@@ -86,15 +95,17 @@
                              nil
                              'trace)
                 :condition-all (progn
-                                 ,(and before
-                                       `(let ((,frame (find-trace-call-frame)))
-                                          (when (null ,frame)
-                                            (error "Failed to find sb-debug::trace-call in stacktraces"))
-                                          (destructuring-bind (,info &rest ,form)
-                                              (nth-value 1 (sb-debug::frame-call ,frame))
-                                            (funcall ,before
-                                                     (sb-debug::trace-info-what ,info)
-                                                     (ensure-printable (rest ,form))))))
+                                 (let ((,frame (find-trace-call-frame)))
+                                   (when (null ,frame)
+                                     (error "Failed to find sb-debug::trace-call in stacktraces"))
+                                   (destructuring-bind (,info &rest ,form)
+                                       (nth-value 1 (sb-debug::frame-call ,frame))
+                                     (declare (ignorable ,form))
+                                     ,@(and before
+                                            `((funcall ,before
+                                                       (sb-debug::trace-info-what ,info)
+                                                       (ensure-printable (rest ,form)))))
+                                     (push (sb-debug::trace-info-what ,info) *traced-stacks*)))
                                  ,(and after
                                        `(multiple-value-bind (,unixtime ,usec)
                                             (get-timings)
@@ -104,6 +115,7 @@
                                                 (gethash sb-thread:*current-thread* *before-usec*))))
                                  t)
                 :break-after (progn
+                               (pop *traced-stacks*)
                                ,(and after
                                      `(let ((,frame (find-trace-call-frame)))
                                         (when (null ,frame)
