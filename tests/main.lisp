@@ -88,10 +88,17 @@ $" outputs)))
     (let ((outputs (let ((*standard-output* (make-broadcast-stream)))
                      (with-output-to-string (*trace-output*)
                        (supertrace/tests/main/test-package:wait-a-while2)))))
+      #-darwin
       (ok (scan "^running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while2\\)
 running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
-3\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
-6\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while2\\) -> nil
+30\\d\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+60\\d\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while2\\) -> nil
+$" outputs))
+      #+darwin
+      (ok (scan "^running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while2\\)
+running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
+[34]\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+[67]\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while2\\) -> nil
 $" outputs))))
 
   (testing "Multiple threads"
@@ -115,8 +122,15 @@ $" outputs))))
 
       (mapc #'bt:join-thread threads)
       (let ((outputs (get-output-stream-string output-stream)))
+        #-darwin
         (ok (scan "^running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
 running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
-3\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
-3\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+30\\d\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+30\\d\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+$" outputs))
+        #+darwin
+        (ok (scan "^running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
+running <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\)
+[34]\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
+[34]\\d{2}\\.\\d{3}ms <SUPERTRACE/TESTS/MAIN/TEST-PACKAGE> \\(wait-a-while\\) -> nil
 $" outputs))))))
