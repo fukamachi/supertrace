@@ -12,13 +12,12 @@
            #:elapsed-logger))
 (in-package #:supertrace)
 
-(declaim (hash-table *before-unixtime* *before-usec* *traced-stacks*))
+(declaim (hash-table *before-unixtime* *before-usec*))
 (defparameter *before-unixtime*
   (make-hash-table :test 'eq))
 (defparameter *before-usec*
   (make-hash-table :test 'eq))
-(defparameter *traced-stacks*
-  (make-hash-table :test 'eq))
+(defparameter *traced-stacks* '())
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun parse-supertrace-options (args)
@@ -72,18 +71,11 @@
            (values sec (floor nsec 1000)))
   #-unix (sb-ext:get-time-of-day))
 
-(declaim (inline traced-stacks))
-(defun traced-stacks ()
-  (gethash sb-thread:*current-thread* *traced-stacks*))
-
-(defun (setf traced-stacks) (object)
-  (setf (gethash sb-thread:*current-thread* *traced-stacks*) object))
-
 (defun parent ()
-  (first (traced-stacks)))
+  (first *traced-stacks*))
 
 (defun depth ()
-  (length (traced-stacks)))
+  (count-if #'cdr sb-debug::*traced-entries*))
 
 (defmacro supertrace (&rest names-and-options)
   (multiple-value-bind (options function-names)
@@ -113,7 +105,7 @@
                                             `((funcall ,before
                                                        (sb-debug::trace-info-what ,info)
                                                        (ensure-printable (rest ,form)))))
-                                     (push (sb-debug::trace-info-what ,info) (traced-stacks))))
+                                     (push (sb-debug::trace-info-what ,info) *traced-stacks*)))
                                  ,(and after
                                        `(multiple-value-bind (,unixtime ,usec)
                                             (get-timings)
@@ -123,7 +115,7 @@
                                                 (gethash sb-thread:*current-thread* *before-usec*))))
                                  t)
                 :break-after (progn
-                               (pop (traced-stacks))
+                               (pop *traced-stacks*)
                                ,(and after
                                      `(let ((,frame (find-trace-call-frame)))
                                         (when (null ,frame)
